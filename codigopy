@@ -1,46 +1,131 @@
-class AterrizajeAutomatizado:
+import threading
+import random
+import time
+from datetime import datetime
+
+# Datos auxiliares
+AEROLINEAS = ["LATAM", "Avianca", "Copa", "Iberia"]
+MODELOS = ["Airbus A320", "Boeing 737", "Embraer 190", "F-16"]
+ORIGENES = ["BOG", "JFK", "MAD", "PTY"]
+
+class Avion:
+    def __init__(self, vuelo, aerolinea, modelo, combustible, origen, tipo, emergencia):
+        self.vuelo = vuelo
+        self.aerolinea = aerolinea
+        self.modelo = modelo
+        self.combustible = combustible  # Porcentaje
+        self.origen = origen
+        self.tipo = tipo  # "Comercial", "Militar", "Carga"
+        self.emergencia = emergencia  # Bool
+        self.tamano = "Grande" if "Boeing" in modelo or tipo == "Militar" else "Mediano"
+        self.prioridad = self.asignar_prioridad()
+
+    def asignar_prioridad(self):
+        if self.emergencia or self.combustible < 20:
+            return "ALTA"
+        return "NORMAL"
+
+class Clima:
     def __init__(self):
-        self.altura = 10000           # en pies
-        self.distancia_pista = 50     # en km
-        self.velocidad = 250          # en nudos
-        self.tiempo = 0               # en segundos
+        self.condiciones = ["Despejado", "Lluvia", "Tormenta", "Niebla"]
 
-        # Parámetros de descenso
-        self.paso_altura = 500
-        self.paso_distancia = 5
-        self.paso_velocidad = 10
+    def obtener_clima_actual(self):
+        return random.choice(self.condiciones)
 
-    def mostrar_estado(self):
-        print(f"Tiempo: {self.tiempo}s | Altura: {self.altura} ft | "
-              f"Distancia a pista: {self.distancia_pista} km | Velocidad: {self.velocidad} nudos")
+class Pista:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.operativa = True  # Puede cambiar en simulaciones más avanzadas
 
-    def simular(self):
-        print("==== Simulación de Aterrizaje Automatizado ====")
-        while not self.condiciones_de_aterrizaje():
-            self.mostrar_estado()
-            self.actualizar_parametros()
-            self.tiempo += 10
-        self.mostrar_estado()
-        print("✅ Aterrizaje completado con éxito.")
-        print("================================================")
+class TorreControl:
+    def __init__(self):
+        self.pista = Pista()
+        self.clima = Clima()
+        self.aviones = []
+        self.trafico = 0
+        self.activo = True
 
-    def condiciones_de_aterrizaje(self):
-        return self.altura == 0 and self.distancia_pista == 0 and self.velocidad <= 140
+    def agregar_avion(self, avion):
+        self.aviones.append(avion)
+        self.trafico += 1
+        self.mostrar_solicitud(avion)
 
-    def actualizar_parametros(self):
-        if self.altura > 0:
-            self.altura = max(0, self.altura - self.paso_altura)
+    def mostrar_solicitud(self, avion):
+        print(f"\n✈️  Solicitud de aterrizaje recibida:\n    - Vuelo: {avion.vuelo}\n    - Aerolínea: {avion.aerolinea}\n    - Modelo: {avion.modelo}\n    - Combustible: {avion.combustible}%\n    - Origen: {avion.origen}\n    - Tipo: {avion.tipo}\n    - Emergencia: {'Sí' if avion.emergencia else 'No'}\n    - Prioridad: {avion.prioridad}")
 
-        if self.distancia_pista > 0:
-            self.distancia_pista = max(0, self.distancia_pista - self.paso_distancia)
+    def evaluar_condiciones(self, avion):
+        clima_actual = self.clima.obtener_clima_actual()
+        hora = datetime.now().hour
+        visibilidad_nocturna = hora >= 20 or hora <= 6
 
-        if self.velocidad > 140:
-            self.velocidad = max(140, self.velocidad - self.paso_velocidad)
+        print(f"\n🌦️  Clima actual: {clima_actual}")
 
-# Ejecutar simulación
-if __name__ == "__main__":
-    simulacion = AterrizajeAutomatizado()
-    simulacion.simular()
+        if not self.pista.operativa:
+            return False, "Pista fuera de servicio"
+
+        if clima_actual in ["Tormenta", "Niebla"] and not avion.emergencia:
+            return False, "Clima inseguro"
+
+        if visibilidad_nocturna and avion.tipo != "Militar" and not avion.emergencia:
+            return False, "Visibilidad nocturna insuficiente"
+
+        if self.trafico > 5 and avion.prioridad != "ALTA":
+            return False, "Demasiado tráfico aéreo"
+
+        return True, "Condiciones aceptables"
+
+    def procesar_aterrizajes(self):
+        while self.activo:
+            if self.aviones:
+                avion = self.aviones.pop(0)
+                autorizado, razon = self.evaluar_condiciones(avion)
+
+                if autorizado:
+                    with self.pista.lock:
+                        print(f"✅ {razon}. Aterrizaje autorizado para vuelo {avion.vuelo}.")
+                        print(f"🛬 Aterrizando vuelo {avion.vuelo}...")
+                        time.sleep(3)
+                        print(f"✅ Aterrizaje exitoso.")
+                        print(f"🛫 Pista liberada. Lista para el siguiente vuelo.")
+                        self.trafico -= 1
+                else:
+                    print(f"🚫 Aterrizaje denegado para vuelo {avion.vuelo}: {razon}.")
+                    self.aviones.append(avion)
+            time.sleep(2)
+
+    def detener(self):
+        self.activo = False
+
+def generar_aviones(torre):
+    while torre.activo:
+        vuelo = f"A{random.randint(100,999)}"
+        avion = Avion(
+            vuelo,
+            random.choice(AEROLINEAS),
+            random.choice(MODELOS),
+            random.randint(5, 100),
+            random.choice(ORIGENES),
+            random.choice(["Comercial", "Militar", "Carga"]),
+            random.choice([True, False, False, False])
+        )
+        torre.agregar_avion(avion)
+        time.sleep(random.randint(3, 6))
+
+# Crear torre y lanzar hilos
+torre = TorreControl()
+hilo_aterrizaje = threading.Thread(target=torre.procesar_aterrizajes)
+hilo_generador = threading.Thread(target=generar_aviones, args=(torre,))
+
+hilo_aterrizaje.start()
+hilo_generador.start()
+
+# Ejecutar durante 30 segundos y detener
+time.sleep(30)
+torre.detener()
+hilo_aterrizaje.join()
+hilo_generador.join()
+
+print("\n🛑 Simulación finalizada.")
 
 
 
