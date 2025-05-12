@@ -1,1 +1,46 @@
-holaaaa
+class AterrizajeAutomatizado:
+    def __init__(self):
+        self.altura = 10000           # en pies
+        self.distancia_pista = 50     # en km
+        self.velocidad = 250          # en nudos
+        self.tiempo = 0               # en segundos
+
+        # Parámetros de descenso
+        self.paso_altura = 500
+        self.paso_distancia = 5
+        self.paso_velocidad = 10
+
+    def mostrar_estado(self):
+        print(f"Tiempo: {self.tiempo}s | Altura: {self.altura} ft | "
+              f"Distancia a pista: {self.distancia_pista} km | Velocidad: {self.velocidad} nudos")
+
+    def simular(self):
+        print("==== Simulación de Aterrizaje Automatizado ====")
+        while not self.condiciones_de_aterrizaje():
+            self.mostrar_estado()
+            self.actualizar_parametros()
+            self.tiempo += 10
+        self.mostrar_estado()
+        print("✅ Aterrizaje completado con éxito.")
+        print("================================================")
+
+    def condiciones_de_aterrizaje(self):
+        return self.altura == 0 and self.distancia_pista == 0 and self.velocidad <= 140
+
+    def actualizar_parametros(self):
+        if self.altura > 0:
+            self.altura = max(0, self.altura - self.paso_altura)
+
+        if self.distancia_pista > 0:
+            self.distancia_pista = max(0, self.distancia_pista - self.paso_distancia)
+
+        if self.velocidad > 140:
+            self.velocidad = max(140, self.velocidad - self.paso_velocidad)
+
+# Ejecutar simulación
+if __name__ == "__main__":
+    simulacion = AterrizajeAutomatizado()
+    simulacion.simular()
+
+
+
